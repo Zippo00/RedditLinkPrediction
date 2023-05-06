@@ -3,6 +3,15 @@ import numpy as np
 import networkx as nx
 from karateclub.dataset import GraphSetReader
 from karateclub import FeatherGraph
+from karateclub import FGSD
+from karateclub import GeoScattering
+from karateclub import GL2Vec
+from karateclub import Graph2Vec
+from karateclub import IGE
+from karateclub import LDP
+from karateclub import NetLSD
+from karateclub import SF
+from karateclub import WaveletCharacteristic
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score
 from sklearn.linear_model import LogisticRegression
@@ -13,6 +22,36 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
+
+
+def plot_degree_distributions(graphdata):
+    '''
+    Plot each graph in a given list of graphs and plot the degree distribution histogram for said graph
+    :param graphdata: (list) List of NetworkX Graphs
+    '''
+    for i in graphdata:
+        G = nx.Graph(i)
+        degree_sequence = sorted((d for n, d in G.degree()), reverse=True)
+        fig = plt.figure("Degree of a graph", figsize=(8, 8))
+        axgrid = fig.add_gridspec(5, 4)
+
+        ax0 = fig.add_subplot(axgrid[0:3, :])
+        Gcc = G.subgraph(sorted(nx.connected_components(G), key=len, reverse=True)[0])
+        pos = nx.spring_layout(Gcc, seed=10396953)
+        nx.draw_networkx_nodes(Gcc, pos, ax=ax0, node_size=20)
+        nx.draw_networkx_edges(Gcc, pos, ax=ax0, alpha=0.4)
+        ax0.set_title("Connected components of G")
+        ax0.set_axis_off()
+
+        ax2 = fig.add_subplot(axgrid[3:, :])
+        ax2.bar(*np.unique(degree_sequence, return_counts=True))
+        ax2.set_title("Degree histogram")
+        ax2.set_xlabel("Degree")
+        ax2.set_ylabel("# of Nodes")
+
+        fig.tight_layout()
+        plt.show()
+        #deg_values, deg_counts = np.unique(degree_sequence, return_counts=True)
 
 
 def deg_feature_vectors(graphdata):
@@ -153,34 +192,17 @@ y = reader.get_target()
 random_states = [0, 1, 5, 12, 38, 42, 47, 49, 72, 77]
 
 # Generate feature vectors for each graph (Uncomment one of these to use)
-#feature_vectors = deg_feature_vectors(graphs)
-#feature_vectors = betweenness_centrality_vectors(graphs)
-feature_vectors = closeness_centrality_vectors(graphs)
+#feature_vectors, index = deg_feature_vectors(graphs), 0
+#feature_vectors, index = betweenness_centrality_vectors(graphs), 1
+feature_vectors, index = closeness_centrality_vectors(graphs), 2
 
-
-    #                                                           **UNCOMMENT CODE BELOW TO PLOT THE GRAPH AND DEGREE DISTRIBUTION FOR EACH REDDIT THREAD**
-    # fig = plt.figure("Degree of a graph", figsize=(8, 8))
-    # axgrid = fig.add_gridspec(5, 4)
-
-    # ax0 = fig.add_subplot(axgrid[0:3, :])
-    # Gcc = G.subgraph(sorted(nx.connected_components(G), key=len, reverse=True)[0])
-    # pos = nx.spring_layout(Gcc, seed=10396953)
-    # nx.draw_networkx_nodes(Gcc, pos, ax=ax0, node_size=20)
-    # nx.draw_networkx_edges(Gcc, pos, ax=ax0, alpha=0.4)
-    # ax0.set_title("Connected components of G")
-    # ax0.set_axis_off()
-
-    # ax2 = fig.add_subplot(axgrid[3:, :])
-    # ax2.bar(*np.unique(degree_sequence, return_counts=True))
-    # ax2.set_title("Degree histogram")
-    # ax2.set_xlabel("Degree")
-    # ax2.set_ylabel("# of Nodes")
-
-    # fig.tight_layout()
-    # plt.show()
-
-
-print("\n--------------------------AUC Scores using a certain feature vector------------------------------------")
+if index == 0:
+    fv = "Degree Distribution"
+if index == 1:
+    fv = "Betweenness Centralities"
+if index == 2:
+    fv = "Closeness Centralities"
+print(f"\n--------------------------AUC Scores using node {fv} as feature vectors------------------------------------\n")
 # Predicting threads with Logistic Regression
 auc_mean = 0
 counter = 0
@@ -280,15 +302,177 @@ print(f"Support Vector Machines Average AUC: {auc_mean:.4f}")
 
 
 # USING EMBEDDING VECTOR FOR THE WHOLE NETWORK AS THE FEATURE VECTOR
-print("------------------------------------------------AUC Scores using karate club embeddings with Logistic Regression--------------------------------------------------------------")
+print("\n------------------------------------------------AUC Scores using karate club embeddings with Logistic Regression--------------------------------------------------------------\n")
 # Fit a Feather model to the graphs
 model = FeatherGraph()
 model.fit(graphs)
 # Get graph embedding
 X_embeddings = model.get_embedding()
 
-X_train, X_test, y_train, y_test = train_test_split(X_embeddings, y, test_size=0.2, random_state=42)
-downstream_model = LogisticRegression(random_state=0).fit(X_train, y_train)
-y_hat = downstream_model.predict_proba(X_test)[:, 1]
-auc = roc_auc_score(y_test, y_hat)
-print('Embeddings Logistic Regression AUC: {:.4f}'.format(auc))
+auc_mean = 0
+counter = 0
+for i in random_states:
+    X_train, X_test, y_train, y_test = train_test_split(X_embeddings, y, test_size=0.2, random_state=i)
+    downstream_model = LogisticRegression(random_state=0, max_iter=1000).fit(X_train, y_train)
+    y_hat = downstream_model.predict_proba(X_test)[:, 1]
+    auc = roc_auc_score(y_test, y_hat)
+    auc_mean += auc
+    counter += 1
+auc_mean = auc_mean / counter
+print('FeatherGraph Embeddings Logistic Regression average AUC: {:.4f}'.format(auc_mean))
+
+# Fit a FGSD model to the graphs
+model = FGSD()
+model.fit(graphs)
+# Get graph embedding
+X_embeddings = model.get_embedding()
+
+auc_mean = 0
+counter = 0
+for i in random_states:
+    X_train, X_test, y_train, y_test = train_test_split(X_embeddings, y, test_size=0.2, random_state=i)
+    downstream_model = LogisticRegression(random_state=0, max_iter=10000).fit(X_train, y_train)
+    y_hat = downstream_model.predict_proba(X_test)[:, 1]
+    auc = roc_auc_score(y_test, y_hat)
+    auc_mean += auc
+    counter += 1
+auc_mean = auc_mean / counter
+print('FGSD Embeddings Logistic Regression average AUC: {:.4f}'.format(auc_mean))
+
+# Fit a GeoScattering model to the graphs
+model = GeoScattering()
+model.fit(graphs)
+# Get graph embedding
+X_embeddings = model.get_embedding()
+
+auc_mean = 0
+counter = 0
+for i in random_states:
+    X_train, X_test, y_train, y_test = train_test_split(X_embeddings, y, test_size=0.2, random_state=i)
+    downstream_model = LogisticRegression(random_state=0, max_iter=1000).fit(X_train, y_train)
+    y_hat = downstream_model.predict_proba(X_test)[:, 1]
+    auc = roc_auc_score(y_test, y_hat)
+    auc_mean += auc
+    counter += 1
+auc_mean = auc_mean / counter
+print('GeoScattering Embeddings Logistic Regression average AUC: {:.4f}'.format(auc_mean))
+
+# Fit a GL2Vec model to the graphs
+model = GL2Vec()
+model.fit(graphs)
+# Get graph embedding
+X_embeddings = model.get_embedding()
+
+auc_mean = 0
+counter = 0
+for i in random_states:
+    X_train, X_test, y_train, y_test = train_test_split(X_embeddings, y, test_size=0.2, random_state=i)
+    downstream_model = LogisticRegression(random_state=0, max_iter=1000).fit(X_train, y_train)
+    y_hat = downstream_model.predict_proba(X_test)[:, 1]
+    auc = roc_auc_score(y_test, y_hat)
+    auc_mean += auc
+    counter += 1
+auc_mean = auc_mean / counter
+print('GL2Vec Embeddings Logistic Regression AUC: {:.4f}'.format(auc_mean))
+
+# Fit a Graph2Vec model to the graphs
+model = Graph2Vec()
+model.fit(graphs)
+# Get graph embedding
+X_embeddings = model.get_embedding()
+
+auc_mean = 0
+counter = 0
+for i in random_states:
+    X_train, X_test, y_train, y_test = train_test_split(X_embeddings, y, test_size=0.2, random_state=i)
+    downstream_model = LogisticRegression(random_state=0, max_iter=1000).fit(X_train, y_train)
+    y_hat = downstream_model.predict_proba(X_test)[:, 1]
+    auc = roc_auc_score(y_test, y_hat)
+    auc_mean += auc
+    counter += 1
+auc_mean = auc_mean / counter
+print('Graph2Vec Embeddings Logistic Regression AUC: {:.4f}'.format(auc_mean))
+
+# # Fit a IGE model to the graphs
+# model = IGE()
+# model.fit(graphs)
+# # Get graph embedding
+# X_embeddings = model.get_embedding()
+
+# X_train, X_test, y_train, y_test = train_test_split(X_embeddings, y, test_size=0.2, random_state=42)
+# downstream_model = LogisticRegression(random_state=0, max_iter=1000).fit(X_train, y_train)
+# y_hat = downstream_model.predict_proba(X_test)[:, 1]
+# auc = roc_auc_score(y_test, y_hat)
+# print('IGE Embeddings Logistic Regression AUC: {:.4f}'.format(auc))
+
+# Fit a LDP model to the graphs
+model = LDP()
+model.fit(graphs)
+# Get graph embedding
+X_embeddings = model.get_embedding()
+
+auc_mean = 0
+counter = 0
+for i in random_states:
+    X_train, X_test, y_train, y_test = train_test_split(X_embeddings, y, test_size=0.2, random_state=i)
+    downstream_model = LogisticRegression(random_state=0, max_iter=10000).fit(X_train, y_train)
+    y_hat = downstream_model.predict_proba(X_test)[:, 1]
+    auc = roc_auc_score(y_test, y_hat)
+    auc_mean += auc
+    counter += 1
+auc_mean = auc_mean / counter
+print('LDP Embeddings Logistic Regression AUC: {:.4f}'.format(auc_mean))
+
+# Fit a NetLSD model to the graphs
+model = NetLSD()
+model.fit(graphs)
+# Get graph embedding
+X_embeddings = model.get_embedding()
+
+auc_mean = 0
+counter = 0
+for i in random_states:
+    X_train, X_test, y_train, y_test = train_test_split(X_embeddings, y, test_size=0.2, random_state=i)
+    downstream_model = LogisticRegression(random_state=0, max_iter=1000).fit(X_train, y_train)
+    y_hat = downstream_model.predict_proba(X_test)[:, 1]
+    auc = roc_auc_score(y_test, y_hat)
+    auc_mean += auc
+    counter += 1
+auc_mean = auc_mean / counter
+print('NetLSD Embeddings Logistic Regression AUC: {:.4f}'.format(auc_mean))
+
+# Fit a SF model to the graphs
+model = SF()
+model.fit(graphs)
+# Get graph embedding
+X_embeddings = model.get_embedding()
+
+auc_mean = 0
+counter = 0
+for i in random_states:
+    X_train, X_test, y_train, y_test = train_test_split(X_embeddings, y, test_size=0.2, random_state=i)
+    downstream_model = LogisticRegression(random_state=0, max_iter=1000).fit(X_train, y_train)
+    y_hat = downstream_model.predict_proba(X_test)[:, 1]
+    auc = roc_auc_score(y_test, y_hat)
+    auc_mean += auc
+    counter += 1
+auc_mean = auc_mean / counter
+print('SF Embeddings Logistic Regression AUC: {:.4f}'.format(auc_mean))
+
+# Fit a WaveletCharacteristic model to the graphs
+model = WaveletCharacteristic()
+model.fit(graphs)
+# Get graph embedding
+X_embeddings = model.get_embedding()
+
+auc_mean = 0
+counter = 0
+for i in random_states:
+    X_train, X_test, y_train, y_test = train_test_split(X_embeddings, y, test_size=0.2, random_state=i)
+    downstream_model = LogisticRegression(random_state=0, max_iter=1000).fit(X_train, y_train)
+    y_hat = downstream_model.predict_proba(X_test)[:, 1]
+    auc = roc_auc_score(y_test, y_hat)
+    auc_mean += auc
+    counter += 1
+auc_mean = auc_mean / counter
+print('WaveletCharacteristic Embeddings Logistic Regression AUC: {:.4f}'.format(auc_mean))
