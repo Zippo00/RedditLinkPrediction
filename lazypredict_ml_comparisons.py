@@ -153,11 +153,6 @@ y = reader.get_target()
 # 10 Train-test random state values for deterministic set selections
 random_states = [0, 1, 5, 12, 38, 42, 47, 49, 72, 77]
 
-#Test data
-#data = load_breast_cancer()
-#feature_vectors = data.data
-#y= data.target
-
 # Generate feature vectors for each graph (Uncomment one of these to use)
 #feature_vectors, index = deg_feature_vectors(graphs), 0
 #feature_vectors, index = betweenness_centrality_vectors(graphs), 1
@@ -183,14 +178,8 @@ for j, i in enumerate(random_states):
         for index2, row2 in models_test.iterrows():
             if index == index2:
                 AUCs.at[index, 'ROC AUC'] += models_test.at[index2, 'ROC AUC']
-    #print(f"AUCs: {AUCs}\n\n")
-    #print(f"models_test: {models_test}\n\n")
-    # if count > 2:
-    #     break
 for index in AUCs.index:
     auc_sum = AUCs['ROC AUC'][index]
     AUCs.at[index, 'ROC AUC'] = (auc_sum / count)
 
 print(f"Average AUC scores:\n{AUCs}")
-
-
