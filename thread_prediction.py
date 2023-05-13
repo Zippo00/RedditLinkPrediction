@@ -1,3 +1,9 @@
+'''
+Python file for testing different Machine Learning models' accuracy to predict whether a Reddit thread is discussion or non-discussion based using different metrics as the feature vectors.
+
+Author: Mikko Lempinen
+'''
+
 import matplotlib.pyplot as plt
 import numpy as np
 import networkx as nx
@@ -22,6 +28,9 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
+from sklearn.random_projection import *
+from sklearn.metrics import *
+import lightgbm as lgb
 
 
 def plot_degree_distributions(graphdata):
@@ -182,6 +191,8 @@ def closeness_centrality_vectors(graphdata):
                 feature_vector[12] += 1
         feature_vectors.append(feature_vector)
     return feature_vectors
+
+
 # Initialize graph reader
 reader = GraphSetReader("reddit10k")
 
@@ -302,7 +313,8 @@ print(f"Support Vector Machines Average AUC: {auc_mean:.4f}")
 
 
 # USING EMBEDDING VECTOR FOR THE WHOLE NETWORK AS THE FEATURE VECTOR
-print("\n------------------------------------------------AUC Scores using karate club embeddings with Logistic Regression--------------------------------------------------------------\n")
+results = []
+print("\n------------------------------------------------AUC Scores using karate club embeddings with LightGBM--------------------------------------------------------------\n")
 # Fit a Feather model to the graphs
 model = FeatherGraph()
 model.fit(graphs)
@@ -313,13 +325,34 @@ auc_mean = 0
 counter = 0
 for i in random_states:
     X_train, X_test, y_train, y_test = train_test_split(X_embeddings, y, test_size=0.2, random_state=i)
-    downstream_model = LogisticRegression(random_state=0, max_iter=1000).fit(X_train, y_train)
-    y_hat = downstream_model.predict_proba(X_test)[:, 1]
+    lgb_train = lgb.Dataset(X_train, y_train)
+    lgb_eval = lgb.Dataset(X_test, y_test, reference=lgb_train)
+    # Params
+    params = {
+        'task': 'train',
+        'boosting_type': 'gbdt',
+        'objective': 'binary',
+        'is_unbalance': True,
+        'metric': 'binary_logloss',
+        'num_leaves': 31,
+        'learning_rate': 0.04,
+        'bagging_fraction': 0.95,
+        'feature_fraction': 0.98,
+        'bagging_freq': 6,
+        'max_depth': -1,
+        'max_bin': 511,
+        'min_data_in_leaf': 20,
+        'verbose': 0,
+        'seed': i
+    }
+    downstream_model = lgb.train(params, lgb_train, num_boost_round=800, valid_sets=lgb_eval, early_stopping_rounds=20)
+    y_hat = downstream_model.predict(X_test, num_iteration=downstream_model.best_iteration)
     auc = roc_auc_score(y_test, y_hat)
     auc_mean += auc
     counter += 1
 auc_mean = auc_mean / counter
-print('FeatherGraph Embeddings Logistic Regression average AUC: {:.4f}'.format(auc_mean))
+print('FeatherGraph Embeddings LightGBM average AUC: {:.4f}'.format(auc_mean))
+results.append('FeatherGraph Embeddings LightGBM average AUC: {:.4f}'.format(auc_mean))
 
 # Fit a FGSD model to the graphs
 model = FGSD()
@@ -331,13 +364,34 @@ auc_mean = 0
 counter = 0
 for i in random_states:
     X_train, X_test, y_train, y_test = train_test_split(X_embeddings, y, test_size=0.2, random_state=i)
-    downstream_model = LogisticRegression(random_state=0, max_iter=10000).fit(X_train, y_train)
-    y_hat = downstream_model.predict_proba(X_test)[:, 1]
+    lgb_train = lgb.Dataset(X_train, y_train)
+    lgb_eval = lgb.Dataset(X_test, y_test, reference=lgb_train)
+    # Params
+    params = {
+        'task': 'train',
+        'boosting_type': 'gbdt',
+        'objective': 'binary',
+        'is_unbalance': True,
+        'metric': 'binary_logloss',
+        'num_leaves': 31,
+        'learning_rate': 0.04,
+        'bagging_fraction': 0.95,
+        'feature_fraction': 0.98,
+        'bagging_freq': 6,
+        'max_depth': -1,
+        'max_bin': 511,
+        'min_data_in_leaf': 20,
+        'verbose': 0,
+        'seed': i
+    }
+    downstream_model = lgb.train(params, lgb_train, num_boost_round=800, valid_sets=lgb_eval, early_stopping_rounds=20)
+    y_hat = downstream_model.predict(X_test, num_iteration=downstream_model.best_iteration)
     auc = roc_auc_score(y_test, y_hat)
     auc_mean += auc
     counter += 1
 auc_mean = auc_mean / counter
-print('FGSD Embeddings Logistic Regression average AUC: {:.4f}'.format(auc_mean))
+print('FGSD Embeddings LightGBM average AUC: {:.4f}'.format(auc_mean))
+results.append('FGSD Embeddings LightGBM average AUC: {:.4f}'.format(auc_mean))
 
 # Fit a GeoScattering model to the graphs
 model = GeoScattering()
@@ -349,13 +403,34 @@ auc_mean = 0
 counter = 0
 for i in random_states:
     X_train, X_test, y_train, y_test = train_test_split(X_embeddings, y, test_size=0.2, random_state=i)
-    downstream_model = LogisticRegression(random_state=0, max_iter=1000).fit(X_train, y_train)
-    y_hat = downstream_model.predict_proba(X_test)[:, 1]
+    lgb_train = lgb.Dataset(X_train, y_train)
+    lgb_eval = lgb.Dataset(X_test, y_test, reference=lgb_train)
+    # Params
+    params = {
+        'task': 'train',
+        'boosting_type': 'gbdt',
+        'objective': 'binary',
+        'is_unbalance': True,
+        'metric': 'binary_logloss',
+        'num_leaves': 31,
+        'learning_rate': 0.04,
+        'bagging_fraction': 0.95,
+        'feature_fraction': 0.98,
+        'bagging_freq': 6,
+        'max_depth': -1,
+        'max_bin': 511,
+        'min_data_in_leaf': 20,
+        'verbose': 0,
+        'seed': i
+    }
+    downstream_model = lgb.train(params, lgb_train, num_boost_round=800, valid_sets=lgb_eval, early_stopping_rounds=20)
+    y_hat = downstream_model.predict(X_test, num_iteration=downstream_model.best_iteration)
     auc = roc_auc_score(y_test, y_hat)
     auc_mean += auc
     counter += 1
 auc_mean = auc_mean / counter
-print('GeoScattering Embeddings Logistic Regression average AUC: {:.4f}'.format(auc_mean))
+print('GeoScattering Embeddings LightGBM average AUC: {:.4f}'.format(auc_mean))
+results.append('GeoScattering Embeddings LightGBM average AUC: {:.4f}'.format(auc_mean))
 
 # Fit a GL2Vec model to the graphs
 model = GL2Vec()
@@ -367,13 +442,34 @@ auc_mean = 0
 counter = 0
 for i in random_states:
     X_train, X_test, y_train, y_test = train_test_split(X_embeddings, y, test_size=0.2, random_state=i)
-    downstream_model = LogisticRegression(random_state=0, max_iter=1000).fit(X_train, y_train)
-    y_hat = downstream_model.predict_proba(X_test)[:, 1]
+    lgb_train = lgb.Dataset(X_train, y_train)
+    lgb_eval = lgb.Dataset(X_test, y_test, reference=lgb_train)
+    # Params
+    params = {
+        'task': 'train',
+        'boosting_type': 'gbdt',
+        'objective': 'binary',
+        'is_unbalance': True,
+        'metric': 'binary_logloss',
+        'num_leaves': 31,
+        'learning_rate': 0.04,
+        'bagging_fraction': 0.95,
+        'feature_fraction': 0.98,
+        'bagging_freq': 6,
+        'max_depth': -1,
+        'max_bin': 511,
+        'min_data_in_leaf': 20,
+        'verbose': 0,
+        'seed': i
+    }
+    downstream_model = lgb.train(params, lgb_train, num_boost_round=800, valid_sets=lgb_eval, early_stopping_rounds=20)
+    y_hat = downstream_model.predict(X_test, num_iteration=downstream_model.best_iteration)
     auc = roc_auc_score(y_test, y_hat)
     auc_mean += auc
     counter += 1
 auc_mean = auc_mean / counter
-print('GL2Vec Embeddings Logistic Regression AUC: {:.4f}'.format(auc_mean))
+print('GL2Vec Embeddings LightGBM AUC: {:.4f}'.format(auc_mean))
+results.append('GL2Vec Embeddings LightGBM average AUC: {:.4f}'.format(auc_mean))
 
 # Fit a Graph2Vec model to the graphs
 model = Graph2Vec()
@@ -385,13 +481,34 @@ auc_mean = 0
 counter = 0
 for i in random_states:
     X_train, X_test, y_train, y_test = train_test_split(X_embeddings, y, test_size=0.2, random_state=i)
-    downstream_model = LogisticRegression(random_state=0, max_iter=1000).fit(X_train, y_train)
-    y_hat = downstream_model.predict_proba(X_test)[:, 1]
+    lgb_train = lgb.Dataset(X_train, y_train)
+    lgb_eval = lgb.Dataset(X_test, y_test, reference=lgb_train)
+    # Params
+    params = {
+        'task': 'train',
+        'boosting_type': 'gbdt',
+        'objective': 'binary',
+        'is_unbalance': True,
+        'metric': 'binary_logloss',
+        'num_leaves': 31,
+        'learning_rate': 0.04,
+        'bagging_fraction': 0.95,
+        'feature_fraction': 0.98,
+        'bagging_freq': 6,
+        'max_depth': -1,
+        'max_bin': 511,
+        'min_data_in_leaf': 20,
+        'verbose': 0,
+        'seed': i
+    }
+    downstream_model = lgb.train(params, lgb_train, num_boost_round=800, valid_sets=lgb_eval, early_stopping_rounds=20)
+    y_hat = downstream_model.predict(X_test, num_iteration=downstream_model.best_iteration)
     auc = roc_auc_score(y_test, y_hat)
     auc_mean += auc
     counter += 1
 auc_mean = auc_mean / counter
-print('Graph2Vec Embeddings Logistic Regression AUC: {:.4f}'.format(auc_mean))
+print('Graph2Vec Embeddings LightGBM AUC: {:.4f}'.format(auc_mean))
+results.append('Graph2Vec Embeddings LightGBM average AUC: {:.4f}'.format(auc_mean))
 
 # # Fit a IGE model to the graphs
 # model = IGE()
@@ -399,11 +516,38 @@ print('Graph2Vec Embeddings Logistic Regression AUC: {:.4f}'.format(auc_mean))
 # # Get graph embedding
 # X_embeddings = model.get_embedding()
 
-# X_train, X_test, y_train, y_test = train_test_split(X_embeddings, y, test_size=0.2, random_state=42)
-# downstream_model = LogisticRegression(random_state=0, max_iter=1000).fit(X_train, y_train)
-# y_hat = downstream_model.predict_proba(X_test)[:, 1]
-# auc = roc_auc_score(y_test, y_hat)
-# print('IGE Embeddings Logistic Regression AUC: {:.4f}'.format(auc))
+# auc_mean = 0
+# counter = 0
+# for i in random_states:
+#     X_train, X_test, y_train, y_test = train_test_split(X_embeddings, y, test_size=0.2, random_state=i)
+#     lgb_train = lgb.Dataset(X_train, y_train)
+#     lgb_eval = lgb.Dataset(X_test, y_test, reference=lgb_train)
+#     # Params
+#     params = {
+#         'task': 'train',
+#         'boosting_type': 'gbdt',
+#         'objective': 'binary',
+#         'is_unbalance': True,
+#         'metric': 'binary_logloss',
+#         'num_leaves': 31,
+#         'learning_rate': 0.04,
+#         'bagging_fraction': 0.95,
+#         'feature_fraction': 0.98,
+#         'bagging_freq': 6,
+#         'max_depth': -1,
+#         'max_bin': 511,
+#         'min_data_in_leaf': 20,
+#         'verbose': 0,
+#         'seed': i
+#     }
+#     downstream_model = lgb.train(params, lgb_train, num_boost_round=800, valid_sets=lgb_eval, early_stopping_rounds=20)
+#     y_hat = downstream_model.predict(X_test, num_iteration=downstream_model.best_iteration)
+#     auc = roc_auc_score(y_test, y_hat)
+#     auc_mean += auc
+#     counter += 1
+# auc_mean = auc_mean / counter
+# print('IGE Embeddings Logistic Regression AUC: {:.4f}'.format(auc_mean))
+# results.append('IGE Embeddings LightGBM average AUC: {:.4f}'.format(auc_mean))
 
 # Fit a LDP model to the graphs
 model = LDP()
@@ -415,13 +559,34 @@ auc_mean = 0
 counter = 0
 for i in random_states:
     X_train, X_test, y_train, y_test = train_test_split(X_embeddings, y, test_size=0.2, random_state=i)
-    downstream_model = LogisticRegression(random_state=0, max_iter=10000).fit(X_train, y_train)
-    y_hat = downstream_model.predict_proba(X_test)[:, 1]
+    lgb_train = lgb.Dataset(X_train, y_train)
+    lgb_eval = lgb.Dataset(X_test, y_test, reference=lgb_train)
+    # Params
+    params = {
+        'task': 'train',
+        'boosting_type': 'gbdt',
+        'objective': 'binary',
+        'is_unbalance': True,
+        'metric': 'binary_logloss',
+        'num_leaves': 31,
+        'learning_rate': 0.04,
+        'bagging_fraction': 0.95,
+        'feature_fraction': 0.98,
+        'bagging_freq': 6,
+        'max_depth': -1,
+        'max_bin': 511,
+        'min_data_in_leaf': 20,
+        'verbose': 0,
+        'seed': i
+    }
+    downstream_model = lgb.train(params, lgb_train, num_boost_round=800, valid_sets=lgb_eval, early_stopping_rounds=20)
+    y_hat = downstream_model.predict(X_test, num_iteration=downstream_model.best_iteration)
     auc = roc_auc_score(y_test, y_hat)
     auc_mean += auc
     counter += 1
 auc_mean = auc_mean / counter
-print('LDP Embeddings Logistic Regression AUC: {:.4f}'.format(auc_mean))
+print('LDP Embeddings LightGBM AUC: {:.4f}'.format(auc_mean))
+results.append('LDP Embeddings LightGBM average AUC: {:.4f}'.format(auc_mean))
 
 # Fit a NetLSD model to the graphs
 model = NetLSD()
@@ -433,13 +598,34 @@ auc_mean = 0
 counter = 0
 for i in random_states:
     X_train, X_test, y_train, y_test = train_test_split(X_embeddings, y, test_size=0.2, random_state=i)
-    downstream_model = LogisticRegression(random_state=0, max_iter=1000).fit(X_train, y_train)
-    y_hat = downstream_model.predict_proba(X_test)[:, 1]
+    lgb_train = lgb.Dataset(X_train, y_train)
+    lgb_eval = lgb.Dataset(X_test, y_test, reference=lgb_train)
+    # Params
+    params = {
+        'task': 'train',
+        'boosting_type': 'gbdt',
+        'objective': 'binary',
+        'is_unbalance': True,
+        'metric': 'binary_logloss',
+        'num_leaves': 31,
+        'learning_rate': 0.04,
+        'bagging_fraction': 0.95,
+        'feature_fraction': 0.98,
+        'bagging_freq': 6,
+        'max_depth': -1,
+        'max_bin': 511,
+        'min_data_in_leaf': 20,
+        'verbose': 0,
+        'seed': i
+    }
+    downstream_model = lgb.train(params, lgb_train, num_boost_round=800, valid_sets=lgb_eval, early_stopping_rounds=20)
+    y_hat = downstream_model.predict(X_test, num_iteration=downstream_model.best_iteration)
     auc = roc_auc_score(y_test, y_hat)
     auc_mean += auc
     counter += 1
 auc_mean = auc_mean / counter
-print('NetLSD Embeddings Logistic Regression AUC: {:.4f}'.format(auc_mean))
+print('NetLSD Embeddings LightGBM AUC: {:.4f}'.format(auc_mean))
+results.append('NetLSD Embeddings LightGBM average AUC: {:.4f}'.format(auc_mean))
 
 # Fit a SF model to the graphs
 model = SF()
@@ -451,13 +637,34 @@ auc_mean = 0
 counter = 0
 for i in random_states:
     X_train, X_test, y_train, y_test = train_test_split(X_embeddings, y, test_size=0.2, random_state=i)
-    downstream_model = LogisticRegression(random_state=0, max_iter=1000).fit(X_train, y_train)
-    y_hat = downstream_model.predict_proba(X_test)[:, 1]
+    lgb_train = lgb.Dataset(X_train, y_train)
+    lgb_eval = lgb.Dataset(X_test, y_test, reference=lgb_train)
+    # Params
+    params = {
+        'task': 'train',
+        'boosting_type': 'gbdt',
+        'objective': 'binary',
+        'is_unbalance': True,
+        'metric': 'binary_logloss',
+        'num_leaves': 31,
+        'learning_rate': 0.04,
+        'bagging_fraction': 0.95,
+        'feature_fraction': 0.98,
+        'bagging_freq': 6,
+        'max_depth': -1,
+        'max_bin': 511,
+        'min_data_in_leaf': 20,
+        'verbose': 0,
+        'seed': i
+    }
+    downstream_model = lgb.train(params, lgb_train, num_boost_round=800, valid_sets=lgb_eval, early_stopping_rounds=20)
+    y_hat = downstream_model.predict(X_test, num_iteration=downstream_model.best_iteration)
     auc = roc_auc_score(y_test, y_hat)
     auc_mean += auc
     counter += 1
 auc_mean = auc_mean / counter
-print('SF Embeddings Logistic Regression AUC: {:.4f}'.format(auc_mean))
+print('SF Embeddings LightGBM AUC: {:.4f}'.format(auc_mean))
+results.append('SF Embeddings LightGBM average AUC: {:.4f}'.format(auc_mean))
 
 # Fit a WaveletCharacteristic model to the graphs
 model = WaveletCharacteristic()
@@ -469,10 +676,35 @@ auc_mean = 0
 counter = 0
 for i in random_states:
     X_train, X_test, y_train, y_test = train_test_split(X_embeddings, y, test_size=0.2, random_state=i)
-    downstream_model = LogisticRegression(random_state=0, max_iter=1000).fit(X_train, y_train)
-    y_hat = downstream_model.predict_proba(X_test)[:, 1]
+    lgb_train = lgb.Dataset(X_train, y_train)
+    lgb_eval = lgb.Dataset(X_test, y_test, reference=lgb_train)
+    # Params
+    params = {
+        'task': 'train',
+        'boosting_type': 'gbdt',
+        'objective': 'binary',
+        'is_unbalance': True,
+        'metric': 'binary_logloss',
+        'num_leaves': 31,
+        'learning_rate': 0.04,
+        'bagging_fraction': 0.95,
+        'feature_fraction': 0.98,
+        'bagging_freq': 6,
+        'max_depth': -1,
+        'max_bin': 511,
+        'min_data_in_leaf': 20,
+        'verbose': 0,
+        'seed': i
+    }
+    downstream_model = lgb.train(params, lgb_train, num_boost_round=800, valid_sets=lgb_eval, early_stopping_rounds=20)
+    y_hat = downstream_model.predict(X_test, num_iteration=downstream_model.best_iteration)
     auc = roc_auc_score(y_test, y_hat)
     auc_mean += auc
     counter += 1
 auc_mean = auc_mean / counter
-print('WaveletCharacteristic Embeddings Logistic Regression AUC: {:.4f}'.format(auc_mean))
+print('WaveletCharacteristic Embeddings LightGBM AUC: {:.4f}'.format(auc_mean))
+results.append('WaveletCharacteristic Embeddings LightGBM average AUC: {:.4f}'.format(auc_mean))
+
+print("\n\n")
+for i in results:
+    print(i)
